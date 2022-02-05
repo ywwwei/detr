@@ -29,7 +29,7 @@ def get_args_parser():
                         help='gradient clipping max norm')
 
     # Model parameters
-    parser.add_argument('--frozen_weights', type=str, default=None,
+    parser.add_argument('--pretrained_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
@@ -56,7 +56,7 @@ def get_args_parser():
                         help="Number of query slots")
     parser.add_argument('--pre_norm', action='store_true')
 
-    # * Segmentation
+    # * Segmentation -ignore
     parser.add_argument('--masks', action='store_true',
                         help="Train segmentation head if the flag is provided")
 
@@ -79,12 +79,12 @@ def get_args_parser():
                         help="Relative classification weight of the no-object class")
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='coco')
-    parser.add_argument('--coco_path', type=str)
-    parser.add_argument('--coco_panoptic_path', type=str)
+    parser.add_argument('--dataset_file', default='ytvos')
+    parser.add_argument('--dataset_path', type=str, default='/nobackup/yb/ytvos_data')
+    # parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
-    parser.add_argument('--output_dir', default='',
+    parser.add_argument('--output_dir', default='/nobackup/yb/Exp/vptr',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -94,6 +94,9 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--num_workers', default=2, type=int)
+    parser.add_argument('--future', dest='future', action='store_true')
+    parser.add_argument('--current', dest='future', action='store_false')
+    parser.set_defaults(future=True)
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,

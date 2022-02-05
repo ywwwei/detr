@@ -30,7 +30,7 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument('--pretrained_weights', type=str, default=None,
-                        help="Path to the pretrained model. If set, only the mask head will be trained")
+                        help="Path to the pretrained model.")
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
                         help="Name of the convolutional backbone to use")
@@ -109,11 +109,11 @@ def main(args):
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
-    if args.frozen_weights is not None:
-        assert args.masks, "Frozen training is meant for segmentation only"
-    print(args)
+    # if args.frozen_weights is not None:
+    #     assert args.masks, "Frozen training is meant for segmentation only"
+    # print(args)
 
-    device = torch.device(args.device)
+    device = torch.device("cuda:{}".format(args.local_rank))
 
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()

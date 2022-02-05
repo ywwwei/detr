@@ -115,7 +115,9 @@ def main(args):
 
     device = torch.device("cuda:{}".format(args.local_rank))
 
-    # fix the seed for reproducibility
+    # fix the seed for reproducibility #TODO: check the function of torch.backends
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -126,7 +128,7 @@ def main(args):
 
     model_without_ddp = model
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],output_device=args.local_rank)
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)

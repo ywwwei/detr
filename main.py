@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 import datasets
 import util.misc as utils
-from datasets import build_dataset, get_coco_api_from_dataset
+from datasets import build_dataset, get_coco_api_from_dataset, get_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 
@@ -140,10 +140,12 @@ def main(args):
             "lr": args.lr_backbone,
         },
     ]
+    # * make optimizer
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
+    # * make dataloader
     dataset_train = build_dataset(image_set='train', args=args)
     dataset_val = build_dataset(image_set='val', args=args)
 
@@ -161,13 +163,15 @@ def main(args):
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-
+    # * get api for evaluation
     if args.dataset_file == "coco_panoptic":
         # We also evaluate AP during panoptic training, on original coco DS
         coco_val = datasets.coco.build("val", args)
         base_ds = get_coco_api_from_dataset(coco_val)
-    else:
+    elif args.dataset_file == "coco":
         base_ds = get_coco_api_from_dataset(dataset_val)
+    else:
+        base_ds = get_api_from_dataset(dataset_val)
 
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')

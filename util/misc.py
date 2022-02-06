@@ -5,6 +5,7 @@ Misc functions, including distributed helpers.
 Mostly copy-paste from torchvision references.
 """
 import os
+from posixpath import split
 import subprocess
 import time
 from collections import defaultdict, deque
@@ -304,7 +305,10 @@ class NestedTensor(object):
         return str(self.tensors)
 
 
-def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
+def nested_tensor_from_tensor_list(tensor_list: List[Tensor],split=True):
+    if split: # (B, CL, H, W) -> BL * [(C,H,W)]  L is num of frames
+        tensor_list = [tensor.split(3,dim=0) for tensor in tensor_list]
+        tensor_list = [item for sublist in tensor_list for item in sublist]
     # TODO make this more general
     if tensor_list[0].ndim == 3:
         if torchvision._is_tracing():

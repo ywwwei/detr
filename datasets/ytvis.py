@@ -273,15 +273,14 @@ def build(image_set, args):
     """
     image_set: 'train' or 'val'
     """
-    root = Path(args.argoverse_path)
+    root = Path(args.dataset_path)
     assert root.exists(), f'provided dataset path {root} does not exist'
     # mode = 'instances'
     PATHS = {
-            "train": (root / "train" / "JPEGImages", root / "annotations" / "instances_train_sub_argoformat.json"),
-            "val": (root / "valid" / "JPEGImages", root / "annotations" / "instances_val_sub_argoformat.json")
+            "train": (root / "train" / "JPEGImages", root / "annotations" / "train_argoformat.json"),
+            "val": (root / "train" / "JPEGImages", root / "annotations" / "val_argoformat.json")
     }
-    if image_set in ['val','test']:
-        print('WARNING: No annotations in {} set'.format(image_set))
+
     data_dir, json_file = PATHS[image_set]
     dataset = YTVISDataset(data_dir, json_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, num_frames = args.num_frames, future=args.future)
     print(image_set, ' ',dataset.__len__(), ' measurements')

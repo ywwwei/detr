@@ -14,7 +14,7 @@ from random import randint
 import cv2
 import random
 
-class YTVOSDataset:
+class YTVISDataset:
     def __init__(
         self, 
         data_dir, 
@@ -283,7 +283,7 @@ def build(image_set, args):
     if image_set in ['val','test']:
         print('WARNING: No annotations in {} set'.format(image_set))
     data_dir, json_file = PATHS[image_set]
-    dataset = YTVOSDataset(data_dir, json_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, num_frames = args.num_frames, future=args.future)
+    dataset = YTVISDataset(data_dir, json_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, num_frames = args.num_frames, future=args.future)
     print(image_set, ' ',dataset.__len__(), ' measurements')
     return dataset
 

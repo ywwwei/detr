@@ -278,7 +278,7 @@ def build(image_set, args):
     # mode = 'instances'
     PATHS = {
             "train": (root / "train" / "JPEGImages", root / "annotations" / "train_argoformat.json"),
-            "val": (root / "train" / "JPEGImages", root / "annotations" / "val_argoformat.json")
+            "val": (root / "train" / "JPEGImages", root / "annotations" / "valid_argoformat.json")
     }
 
     data_dir, json_file = PATHS[image_set]

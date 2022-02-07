@@ -16,6 +16,8 @@ from datasets import build_dataset, get_coco_api_from_dataset, get_api_from_data
 from engine import evaluate, train_one_epoch
 from models import build_model
 
+import os
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -29,7 +31,7 @@ def get_args_parser():
                         help='gradient clipping max norm')
 
     # Model parameters
-    parser.add_argument('--pretrained_weights', type=str, default=None,
+    parser.add_argument('--pretrained_weights', type=str, default='/nobackup/yb/modelZoo/vistr_r50.pth',
                         help="Path to the pretrained model.")
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
@@ -46,8 +48,8 @@ def get_args_parser():
                         help="Number of decoding layers in the transformer")
     parser.add_argument('--dim_feedforward', default=2048, type=int,
                         help="Intermediate size of the feedforward layers in the transformer blocks")
-    parser.add_argument('--hidden_dim', default=256, type=int,
-                        help="Size of the embeddings (dimension of the transformer)")
+    parser.add_argument('--hidden_dim', default=384, type=int,
+                        help="Size of the embeddings (dimension of the transformer)") #256->
     parser.add_argument('--dropout', default=0.1, type=float,
                         help="Dropout applied in the transformer")
     parser.add_argument('--nheads', default=8, type=int,
@@ -83,7 +85,8 @@ def get_args_parser():
     parser.add_argument('--dataset_path', type=str, default='/nobackup/yb/ytvos_data')
     # parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-
+    parser.add_argument('--num_frames', default=3, type=int,
+                        help="Number of frames")
     parser.add_argument('--output_dir', default='/nobackup/yb/Exp/vptr',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
@@ -93,7 +96,7 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--num_workers', default=2, type=int)
+    parser.add_argument('--num_workers', default=0, type=int)
     parser.add_argument('--future', dest='future', action='store_true')
     parser.add_argument('--current', dest='future', action='store_false')
     parser.set_defaults(future=True)
@@ -107,13 +110,13 @@ def get_args_parser():
 
 def main(args):
     utils.init_distributed_mode(args)
-    print("git:\n  {}\n".format(utils.get_sha()))
+    # print("git:\n  {}\n".format(utils.get_sha()))
 
     # if args.frozen_weights is not None:
     #     assert args.masks, "Frozen training is meant for segmentation only"
     # print(args)
 
-    device = torch.device("cuda:{}".format(args.local_rank))
+    device = torch.device(args.device) #torch.device("cuda:{}".format(args.local_rank)) if args.local_rank else 
 
     # fix the seed for reproducibility #TODO: check the function of torch.backends
     # torch.backends.cudnn.deterministic = True
@@ -150,7 +153,7 @@ def main(args):
     dataset_val = build_dataset(image_set='val', args=args)
 
     if args.distributed:
-        sampler_train = DistributedSampler(dataset_train)
+        sampler_train = DistributedSampler(dataset_train) #TODO: sampling the dataset
         sampler_val = DistributedSampler(dataset_val, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
@@ -265,4 +268,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
     main(args)

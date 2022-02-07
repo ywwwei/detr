@@ -173,9 +173,18 @@ def main(args):
     else:
         base_ds = get_api_from_dataset(dataset_val)
 
-    if args.frozen_weights is not None:
-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-        model_without_ddp.detr.load_state_dict(checkpoint['model'])
+    # if args.frozen_weights is not None:
+    #     checkpoint = torch.load(args.frozen_weights, map_location='cpu')
+    #     model_without_ddp.detr.load_state_dict(checkpoint['model'])
+        # load model
+    checkpoint = torch.load(args.pretrained_weights, map_location='cpu')['model']
+    # del checkpoint["vistr.class_embed.weight"] #TODO: figure out why del
+    # del checkpoint["vistr.class_embed.bias"]
+    # del checkpoint["vistr.query_embed.weight"]
+    if args.distributed:
+        model.module.load_state_dict(checkpoint,strict=False) #Once you wrap the model with nn.DataParallel you get an "extra" .module in your way.
+    else:
+        model.load_state_dict(checkpoint,strict=False)
 
     output_dir = Path(args.output_dir)
     if args.resume:
@@ -206,6 +215,8 @@ def main(args):
             model, criterion, data_loader_train, optimizer, device, epoch,
             args.clip_max_norm)
         lr_scheduler.step()
+
+        # save every epoch
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             # extra checkpoint before LR drop and every 100 epochs

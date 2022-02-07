@@ -20,7 +20,7 @@ from .transformer import build_transformer
 
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
-    def __init__(self, backbone, transformer, num_classes, num_queries, aux_loss=False):
+    def __init__(self, backbone, transformer, num_classes, num_frames, num_queries, aux_loss=False):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -32,6 +32,7 @@ class DETR(nn.Module):
         """
         super().__init__()
         self.num_queries = num_queries
+        self.num_frames = num_frames
         self.transformer = transformer
         hidden_dim = transformer.d_model
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
@@ -339,6 +340,7 @@ def build(args):
         transformer,
         num_classes=num_classes,
         num_queries=args.num_queries,
+        num_frames=args.num_frames,
         aux_loss=args.aux_loss,
     )
     if args.masks:

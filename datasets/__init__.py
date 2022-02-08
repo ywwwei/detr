@@ -14,6 +14,8 @@ def get_coco_api_from_dataset(dataset):
     if isinstance(dataset, torchvision.datasets.CocoDetection):
         return dataset.coco
 
+def get_api_from_dataset(dataset):
+    return dataset.api
 
 def build_dataset(image_set, args):
     if args.dataset_file == 'coco':

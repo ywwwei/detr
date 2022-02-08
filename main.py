@@ -87,7 +87,7 @@ def get_args_parser():
     parser.add_argument('--dataset_path', type=str, default='/nobackup/yb/ytvos_data')
     # parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--num_frames', default=3, type=int,
+    parser.add_argument('--num_frames', default=1, type=int,
                         help="Number of frames")
     parser.add_argument('--output_dir', default='/nobackup/yb/Exp/vptr',
                         help='path where to save, empty for no saving')
@@ -278,13 +278,14 @@ if __name__ == '__main__':
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
     
-    wandb.init(
-        project='sequence_detr',
-        config={'learning_rate:':args.lr,
-                'batch_size':args.batch_size,
-                'epochs':args.epochs,
-                'backbone':args.backbone,
-                'num_frames':args.num_frames
-        })
+    if int(os.environ['LOCAL_RANK']) == 0:
+        wandb.init(
+            project='sequence_detr',
+            config={'learning_rate:':args.lr,
+                    'batch_size':args.batch_size,
+                    'epochs':args.epochs,
+                    'backbone':args.backbone,
+                    'num_frames':args.num_frames
+            })
 
     main(args)

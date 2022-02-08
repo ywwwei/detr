@@ -97,6 +97,10 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--num_workers', default=2, type=int)
+    parser.add_argument('--future', dest='future', action='store_true')
+    parser.add_argument('--current', dest='future', action='store_false')
+    parser.set_defaults(future=True)
+
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,

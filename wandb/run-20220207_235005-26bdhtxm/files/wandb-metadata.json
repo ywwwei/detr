@@ -1,0 +1,24 @@
+{
+    "os": "Linux-5.4.0-97-generic-x86_64-with-debian-bullseye-sid",
+    "python": "3.7.9",
+    "heartbeatAt": "2022-02-08T05:50:06.599598",
+    "startedAt": "2022-02-08T05:50:05.382756",
+    "docker": null,
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "gpu_count": 4,
+    "cpu_count": 48,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "main.py",
+    "codePath": "main.py",
+    "git": {
+        "remote": "https://github.com/ywwwei/detr.git",
+        "commit": "5ef24b0be89588ebd193c2e3d9816cde941e6d44"
+    },
+    "email": "wei96@wisc.edu",
+    "root": "/afs/cs.wisc.edu/u/y/i/yibingwei/detr",
+    "host": "waiv3",
+    "username": "yibingwei",
+    "executable": "/u/y/i/yibingwei/anaconda3/envs/vistr/bin/python"
+}

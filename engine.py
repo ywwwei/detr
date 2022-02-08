@@ -2,6 +2,7 @@
 """
 Train and eval functions used in main.py
 """
+import wandb
 import math
 import os
 import sys
@@ -58,6 +59,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
         metric_logger.update(class_error=loss_dict_reduced['class_error'])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+        #log every batch
+        if int(os.environ['LOCAL_RANK']) == 0:
+            wandb.log({"train/loss_value":loss_value})
+            wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled})
+            wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled})
+            wandb.log({'epoch':epoch})
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -141,7 +149,21 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     if coco_evaluator is not None:
         if 'bbox' in postprocessors.keys():
-            stats['coco_eval_bbox'] = coco_evaluator.coco_eval['bbox'].stats.tolist()
+            bbox_stats = coco_evaluator.coco_eval['bbox'].stats.tolist()
+            stats['coco_eval_bbox'] = bbox_stats
+            if int(os.environ['LOCAL_RANK']) == 0:
+                wandb.log({'val/map':bbox_stats[0]})
+                wandb.log({'val/map_50':bbox_stats[1]})
+                wandb.log({'val/map_75':bbox_stats[2]})
+                wandb.log({'val/map_small':bbox_stats[3]})
+                wandb.log({'val/map_medium':bbox_stats[4]})
+                wandb.log({'val/map_large':bbox_stats[5]})
+                wandb.log({'val/mar_1':bbox_stats[6]})
+                wandb.log({'val/mar_10':bbox_stats[7]})
+                wandb.log({'val/mar_100':bbox_stats[8]})
+                wandb.log({'val/mar_small':bbox_stats[9]})
+                wandb.log({'val/mar_medium':bbox_stats[10]})
+                wandb.log({'val/mar_large':bbox_stats[11]})
         if 'segm' in postprocessors.keys():
             stats['coco_eval_masks'] = coco_evaluator.coco_eval['segm'].stats.tolist()
     if panoptic_res is not None:

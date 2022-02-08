@@ -1,0 +1,14 @@
+
+| distributed init (rank 0): env://
+number of params: 53942958
+loading annotations into memory...
+Done (t=11.36s)
+creating index...
+index created!
+train   22275  measurements
+loading annotations into memory...
+Done (t=1.83s)
+creating index...
+index created!
+val   687  measurements
+Start training

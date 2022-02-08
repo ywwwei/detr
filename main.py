@@ -1,10 +1,12 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+import wandb
 import argparse
 import datetime
 import json
 import random
 import time
 from pathlib import Path
+import os
 
 import numpy as np
 import torch
@@ -245,4 +247,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    if int(os.environ['LOCAL_RANK']) == 0:
+        wandb.init(
+            project='sequence_detr',
+            config={'learning_rate:':args.lr,
+                    'batch_size':args.batch_size,
+                    'epochs':args.epochs,
+                    'backbone':args.backbone,
+                    'num_frames':args.num_frames
+            })
+
     main(args)

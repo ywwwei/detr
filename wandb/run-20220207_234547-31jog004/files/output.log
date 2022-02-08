@@ -1,0 +1,32 @@
+
+| distributed init (rank 1): env://
+Error in sys.excepthook:
+Traceback (most recent call last):
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/linecache.py", line 47, in getlines
+    return updatecache(filename, module_globals)
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/linecache.py", line 136, in updatecache
+    with tokenize.open(fullname) as fp:
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/tokenize.py", line 451, in open
+    text = TextIOWrapper(buffer, encoding, line_buffering=True)
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/codecs.py", line 309, in __init__
+    def __init__(self, errors='strict'):
+KeyboardInterrupt
+Original exception was:
+Traceback (most recent call last):
+  File "main.py", line 290, in <module>
+    main(args)
+  File "main.py", line 227, in main
+    args.clip_max_norm)
+  File "/afs/cs.wisc.edu/u/y/i/yibingwei/detr/engine.py", line 57, in train_one_epoch
+    optimizer.step()
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/site-packages/torch/optim/lr_scheduler.py", line 65, in wrapper
+    return wrapped(*args, **kwargs)
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/site-packages/torch/optim/optimizer.py", line 88, in wrapper
+    return func(*args, **kwargs)
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/site-packages/torch/autograd/grad_mode.py", line 28, in decorate_context
+    return func(*args, **kwargs)
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/site-packages/torch/optim/adamw.py", line 148, in step
+    eps=group['eps'])
+  File "/u/y/i/yibingwei/anaconda3/envs/vistr/lib/python3.7/site-packages/torch/optim/_functional.py", line 139, in adamw
+    denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(eps)
+KeyboardInterrupt

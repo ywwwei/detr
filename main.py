@@ -81,7 +81,8 @@ def get_args_parser():
                         help="Relative classification weight of the no-object class")
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='coco')
+    parser.add_argument('--dataset_file', default='ytvis')
+    parser.add_argument('--dataset_path', type=str, default='/nobackup/yb/ytvos_data')
     parser.add_argument('--coco_path', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
@@ -254,8 +255,7 @@ if __name__ == '__main__':
             config={'learning_rate:':args.lr,
                     'batch_size':args.batch_size,
                     'epochs':args.epochs,
-                    'backbone':args.backbone,
-                    'num_frames':args.num_frames
+                    'backbone':args.backbone
             })
 
     main(args)

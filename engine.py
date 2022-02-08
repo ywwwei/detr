@@ -61,7 +61,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
         #log every batch
-        if int(os.environ['LOCAL_RANK']) == 0:
+        if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
             wandb.log({"train/loss_value":loss_value})
             wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled})
             wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled})
@@ -151,7 +151,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         if 'bbox' in postprocessors.keys():
             bbox_stats = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_bbox'] = bbox_stats
-            if int(os.environ['LOCAL_RANK']) == 0:
+            if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
                 wandb.log({'val/map':bbox_stats[0]})
                 wandb.log({'val/map_50':bbox_stats[1]})
                 wandb.log({'val/map_75':bbox_stats[2]})

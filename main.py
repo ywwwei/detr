@@ -253,7 +253,7 @@ if __name__ == '__main__':
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
-    if int(os.environ['LOCAL_RANK']) == 0:
+    if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
         wandb.init(
             project='sequence_detr',
             config={'learning_rate:':args.lr,

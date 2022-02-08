@@ -118,7 +118,7 @@ class YTVISDataset:
         imgs = self.load_images(idx) # a list of PIL Image
         assert len(imgs) == 1
         img = imgs[0]
-        w, h = img[0].size
+        w, h = img.size
 
         target["orig_size"] = torch.as_tensor([int(h), int(w)])
         target["size"] = torch.as_tensor([int(h), int(w)])

@@ -1,6 +1,8 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+import wandb
 import argparse
 import datetime
+from distutils.command.config import config
 import json
 import random
 import time
@@ -152,8 +154,14 @@ def main(args):
     dataset_train = build_dataset(image_set='train', args=args)
     dataset_val = build_dataset(image_set='val', args=args)
 
+    # sampled the dataset to speed up trainning for debuging
+    sampled_indices = random.sample(list(range(len(dataset_train))),len(dataset_train))[:500]
+    dataset_train = torch.utils.data.Subset(dataset_train,sampled_indices)
+
+    # subsampling the dataset
+
     if args.distributed:
-        sampler_train = DistributedSampler(dataset_train) #TODO: sampling the dataset
+        sampler_train = DistributedSampler(dataset_train) #TODO: sampler that restricts data loading to a subset of the dataset.
         sampler_val = DistributedSampler(dataset_val, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
@@ -269,4 +277,14 @@ if __name__ == '__main__':
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
+    
+    wandb.init(
+        project='sequence_detr',
+        config={'learning_rate:':args.lr,
+                'batch_size':args.batch_size,
+                'epochs':args.epochs,
+                'backbone':args.backbone,
+                'num_frames':args.num_frames
+        })
+
     main(args)

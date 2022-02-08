@@ -1,0 +1,13 @@
+
+Not using distributed mode
+number of params: 53942958
+loading annotations into memory...
+Done (t=11.95s)
+creating index...
+index created!
+train   10881  measurements
+loading annotations into memory...
+Done (t=2.00s)
+creating index...
+index created!
+val   333  measurements

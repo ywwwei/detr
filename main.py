@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 import datasets
 import util.misc as utils
-from datasets import build_dataset, get_coco_api_from_dataset
+from datasets import build_dataset, get_coco_api_from_dataset, get_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 

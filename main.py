@@ -1,10 +1,12 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+import wandb
 import argparse
 import datetime
 import json
 import random
 import time
 from pathlib import Path
+import os
 
 import numpy as np
 import torch
@@ -80,7 +82,7 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
-    parser.add_argument('--coco_path', type=str)
+    parser.add_argument('--coco_path', type=str, default='/nobackup/yb/COCO')
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
@@ -245,4 +247,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    # os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
+    
+    if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+        wandb.init(
+            project='detr_coco',
+            config={'learning_rate:':args.lr,
+                    'batch_size':args.batch_size,
+                    'epochs':args.epochs,
+                    'backbone':args.backbone,
+                    'num_frames':1
+            })
     main(args)

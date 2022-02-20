@@ -2,6 +2,7 @@
 """
 Train and eval functions used in main.py
 """
+from matplotlib import image
 import wandb
 import math
 import os
@@ -14,8 +15,18 @@ import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 
+argoverse_class_id_to_label = { 0:'person',
+                                1:'bicycle',
+                                2:'car',
+                                3:'motorcycle',
+                                4:'bus',
+                                5:'truck',
+                                6:'traffic_light',
+                                7:'stop_sign',
+                                8:'empty'}
 
-def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+
+def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, max_norm: float = 0):
     model.train()
@@ -31,6 +42,11 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         outputs = model(samples)
+
+        # visualization
+        if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+            wandb_visualization(samples,targets,outputs,postprocessors, mode='train')
+
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -74,7 +90,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir):
+def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, mode='eval_val'):
     model.eval()
     criterion.eval()
 
@@ -99,6 +115,11 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         outputs = model(samples)
+
+        # visualization
+        if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+            wandb_visualization(samples,targets,outputs,postprocessors,mode='val')
+
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
 
@@ -153,18 +174,18 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             bbox_stats = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_bbox'] = bbox_stats
             if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-                wandb.log({'val/map':bbox_stats[0]})
-                wandb.log({'val/map_50':bbox_stats[1]})
-                wandb.log({'val/map_75':bbox_stats[2]})
-                wandb.log({'val/map_small':bbox_stats[3]})
-                wandb.log({'val/map_medium':bbox_stats[4]})
-                wandb.log({'val/map_large':bbox_stats[5]})
-                wandb.log({'val/mar_1':bbox_stats[6]})
-                wandb.log({'val/mar_10':bbox_stats[7]})
-                wandb.log({'val/mar_100':bbox_stats[8]})
-                wandb.log({'val/mar_small':bbox_stats[9]})
-                wandb.log({'val/mar_medium':bbox_stats[10]})
-                wandb.log({'val/mar_large':bbox_stats[11]})
+                wandb.log({f'{mode}/map':bbox_stats[0]})
+                wandb.log({f'{mode}/map_50':bbox_stats[1]})
+                wandb.log({f'{mode}/map_75':bbox_stats[2]})
+                wandb.log({f'{mode}/map_small':bbox_stats[3]})
+                wandb.log({f'{mode}/map_medium':bbox_stats[4]})
+                wandb.log({f'{mode}/map_large':bbox_stats[5]})
+                wandb.log({f'{mode}/mar_1':bbox_stats[6]})
+                wandb.log({f'{mode}/mar_10':bbox_stats[7]})
+                wandb.log({f'{mode}/mar_100':bbox_stats[8]})
+                wandb.log({f'{mode}/mar_small':bbox_stats[9]})
+                wandb.log({f'{mode}/mar_medium':bbox_stats[10]})
+                wandb.log({f'{mode}/mar_large':bbox_stats[11]})
             
         if 'segm' in postprocessors.keys():
             stats['coco_eval_masks'] = coco_evaluator.coco_eval['segm'].stats.tolist()
@@ -173,3 +194,61 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         stats['PQ_th'] = panoptic_res["Things"]
         stats['PQ_st'] = panoptic_res["Stuff"]
     return stats, coco_evaluator
+
+
+def wandb_visualization(samples,targets,outputs,postprocessors,mode):
+    '''
+    samples: nested_tensor
+    targets:
+    outputs: {'pred_logits': ,'pred_boxes': , 'aux_outputs':}
+    T = 1
+    '''
+    images, masks = samples.decompose()
+    scores = outputs['pred_logits']
+    boxes = outputs['pred_boxes']
+    # conver the box to 
+    batch_size, num_query, num_classes = scores.shape
+
+    target_sizes = torch.stack([t["size"] for t in targets], dim=0)
+    results = postprocessors['bbox'](outputs, target_sizes) #[{'scores': s, 'labels': l, 'boxes': b}]*batch_size
+
+
+    for i in range(batch_size):
+        wandb_boxes = {}
+
+        image = images[i]
+        mask = masks[i]
+        idx = torch.nonzero(~mask,as_tuple=True)
+        oh,ow = idx[0].max()+1, idx[1].max()+1
+        image = image[:,:oh,:ow]
+        result = results[i]
+
+        # prediction
+        wandb_predictions = {"box_data": [],"class_labels": argoverse_class_id_to_label}
+        for n in range(num_query):
+            box_data = {}
+            box = result["boxes"][n]
+            box_data["position"] = {'minX':box[0].item(),'maxX':box[1].item(),'minY':box[2].item(),'maxY':box[3].item()}
+            class_id = result['labels'][n].item()
+            score = result['scores'][n].item()
+            box_data['class_id'] = class_id
+            box_data['box_caption'] = "%s (%.3f)"%(argoverse_class_id_to_label[int(class_id)],score)
+            box_data['scores'] = {'score':score}
+            box_data['domain'] = 'pixel'
+            wandb_predictions["box_data"].append(box_data)
+
+        # ground_truth
+        # wandb_gt = {}
+        wandb_boxes = {'predictions':wandb_predictions}#, 'ground_truth':wandb_gt}
+        wandb_img = wandb.Image(image, boxes=wandb_boxes)
+        wandb.log({f'{mode}/vis':wandb_img})
+    
+
+def clip_data(a):
+    '''
+    a: torch.tensor
+    Clipping input data to the valid range for imshow with RGB data ([0..1] for floats
+    '''
+    a_min = a.min()
+    a_max = a.max()
+    return torch.clip((a-a_min)/torch.abs(a_max-a_min),0,1)

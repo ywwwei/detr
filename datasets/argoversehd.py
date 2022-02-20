@@ -20,16 +20,15 @@ class ArgoverseHDDataset:
         data_dir, 
         json_file, 
         transforms = None, 
-        return_masks = False, 
         num_frames = 3, 
         step = None, 
         future = True,
+        sub = True
     ):
 
         self.data_dir = data_dir # folder of video folder containing sequences
         self.json_file = json_file # train.json or test.json
         self._transforms = transforms
-        self.return_masks = return_masks
         self.num_frames = num_frames
         if step is None:
             step = self.num_frames+1
@@ -40,7 +39,7 @@ class ArgoverseHDDataset:
         target_im_ids = []
         input_seq_ids = []
 
-        for sid in range(len(self.api.sequences)):
+        for sid in range(len(self.api.sequences[:-1])):
             im_ids =  self.api.sidToImgs[sid] # im_ids in the sequence of current sid
             for fid in range(self.num_frames,len(im_ids),step): 
                 # skip first num_frame frames and last extra frames
@@ -51,6 +50,8 @@ class ArgoverseHDDataset:
 
                 seq_ids_ = [im_ids[fid-i] for i in range(self.num_frames,0,-1)]
                 input_seq_ids.append(seq_ids_)
+                if sub: # only subtract the first frame
+                    break
         assert len(target_im_ids) == len(input_seq_ids)
 
         self.target_im_ids = target_im_ids # a list. each element is the target future im id
@@ -79,7 +80,7 @@ class ArgoverseHDDataset:
         imgs = []
         for im_id in input_im_ids:
             image = self.api.imgs[im_id]
-            img_path = os.path.join(str(self.data_dir),image['name'])
+            img_path = self.data_dir/self.api.sequences[image['sid']]/'ring_front_center'/image['name']
             imgs.append(Image.open(img_path).convert('RGB'))
         return imgs
     
@@ -269,6 +270,40 @@ def make_coco_transforms(image_set):
     raise ValueError(f'unknown {image_set}')
 
 
+def no_transforms(image_set):
+
+    normalize = T.Compose([
+        T.ToTensor(),
+        # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]) # TODO:
+
+    # scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768]
+
+    if image_set == 'train':
+        return T.Compose([
+            # T.RandomHorizontalFlip(),
+            # T.RandomResize(scales, max_size=800),
+            # T.PhotometricDistort(),
+            T.Compose([
+                    #  T.RandomResize([400, 500, 600]),
+                    #  T.RandomSizeCrop(384, 600),
+                     # To suit the GPU memory the scale might be different
+                     T.RandomResize([300], max_size=540),#for r50
+                     #T.RandomResize([280], max_size=504),#for r101
+            ]),
+            normalize,
+        ])
+        # return T.Compose([T.RandomResize([500], max_size=540), T.ToTensor()])
+
+    if image_set == 'val':
+        return T.Compose([
+            T.RandomResize([360], max_size=640),
+            normalize,
+        ])
+        # return T.Compose([T.RandomResize([500], max_size=540), T.ToTensor()])
+
+    raise ValueError(f'unknown {image_set}')
+
 def build(image_set, args):
     """
     image_set: 'train' or 'val'
@@ -277,12 +312,13 @@ def build(image_set, args):
     assert root.exists(), f'provided dataset path {root} does not exist'
     # mode = 'instances'
     PATHS = {
-            "train": (root / "train" / "JPEGImages", root / "annotations" / "train_argoformat.json"),
-            "val": (root / "train" / "JPEGImages", root / "annotations" / "valid_argoformat.json")
+            "train": (root / "Argoverse-1.1/tracking" / "train", root / "Argoverse-HD/annotations" / "train.json"),
+            "val": (root / "Argoverse-1.1/tracking" / "val", root / "Argoverse-HD/annotations" / "val.json")
     }
 
     data_dir, json_file = PATHS[image_set]
-    dataset = ArgoverseHDDataset(data_dir, json_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, num_frames = args.num_frames, future=args.future)
+    # dataset = ArgoverseHDDataset(data_dir, json_file, transforms=make_coco_transforms(image_set), num_frames = args.num_frames, future=args.future)
+    dataset = ArgoverseHDDataset(data_dir, json_file, transforms=no_transforms(image_set), num_frames = args.num_frames, future=args.future)
     print(image_set, ' ',dataset.__len__(), ' measurements')
     return dataset
 

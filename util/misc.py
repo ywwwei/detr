@@ -267,9 +267,9 @@ def get_sha():
     return message
 
 
-def collate_fn(batch):
+def collate_fn(batch): # list of tuple [(sample, target),...] -> tuple (samples, targets)
     batch = list(zip(*batch))
-    batch[0] = nested_tensor_from_tensor_list(batch[0]) #batch[0] is sample
+    batch[0] = nested_tensor_from_tensor_list(batch[0]) #batch = (samples, targets)
     return tuple(batch)
 
 
@@ -306,7 +306,7 @@ class NestedTensor(object):
 
 
 def nested_tensor_from_tensor_list(tensor_list: List[Tensor],split=True):
-    if split: # (B, CL, H, W) -> BL * [(C,H,W)]  L is num of frames
+    if split: # B*[(CT, H, W)] -> BT * [(C,H,W)]  T=num_frames C=3
         tensor_list = [tensor.split(3,dim=0) for tensor in tensor_list]
         tensor_list = [item for sublist in tensor_list for item in sublist]
     # TODO make this more general

@@ -23,17 +23,17 @@ import os
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
-    parser.add_argument('--lr', default=1e-4, type=float)
-    parser.add_argument('--lr_backbone', default=1e-5, type=float)
-    parser.add_argument('--batch_size', default=2, type=int)
+    parser.add_argument('--lr', default=0.001, type=float)
+    parser.add_argument('--lr_backbone', default=0.0001, type=float)
+    parser.add_argument('--batch_size', default=16, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
-    parser.add_argument('--epochs', default=18, type=int)
+    parser.add_argument('--epochs', default=20, type=int)
     parser.add_argument('--lr_drop', default=200, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
 
     # Model parameters
-    parser.add_argument('--pretrained_weights', type=str, default='/nobackup/yb/modelZoo/vistr_r50.pth',
+    parser.add_argument('--pretrained_weights', type=str, default=None,#'/nobackup/yb/modelZoo/vistr_r50.pth',
                         help="Path to the pretrained model.")
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
@@ -83,8 +83,8 @@ def get_args_parser():
                         help="Relative classification weight of the no-object class")
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='ytvis')
-    parser.add_argument('--dataset_path', type=str, default='/nobackup/yb/ytvos_data')
+    parser.add_argument('--dataset_file', default='argoverse')
+    parser.add_argument('--dataset_path', type=str, default='/nobackup/yb/Argoverse')
     # parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
     parser.add_argument('--num_frames', default=1, type=int,
@@ -98,11 +98,10 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--num_workers', default=0, type=int)
-    parser.add_argument('--future', dest='future', action='store_true')
+    parser.add_argument('--num_workers', default=2, type=int)
     parser.add_argument('--current', dest='future', action='store_false')
-    parser.set_defaults(future=True)
-
+    parser.add_argument('--no_data_augmentation', dest='data_augmentation', action='store_false')
+    
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
@@ -116,18 +115,19 @@ def main(args):
 
     # if args.frozen_weights is not None:
     #     assert args.masks, "Frozen training is meant for segmentation only"
-    # print(args)
+    print(args)
 
     device = torch.device(args.device) #torch.device("cuda:{}".format(args.local_rank)) if args.local_rank else 
 
     # fix the seed for reproducibility #TODO: check the function of torch.backends
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
-    seed = args.seed + utils.get_rank()
+    seed = args.seed# + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
+    # * build model
     model, criterion, postprocessors = build_model(args)
     model.to(device)
 
@@ -154,12 +154,11 @@ def main(args):
     dataset_train = build_dataset(image_set='train', args=args)
     dataset_val = build_dataset(image_set='val', args=args)
 
-    # sampled the dataset to speed up trainning for debuging
-    sampled_indices = random.sample(list(range(len(dataset_train))),len(dataset_train))[:500]
-    dataset_train = torch.utils.data.Subset(dataset_train,sampled_indices)
+    # # sampled the dataset to speed up trainning for debuging
+    # sampled_indices = random.sample(list(range(len(dataset_train))),len(dataset_train))[:500]
+    # dataset_train = torch.utils.data.Subset(dataset_train,sampled_indices)
 
     # subsampling the dataset
-
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train) #TODO: sampler that restricts data loading to a subset of the dataset.
         sampler_val = DistributedSampler(dataset_val, shuffle=False)
@@ -187,15 +186,18 @@ def main(args):
     # if args.frozen_weights is not None:
     #     checkpoint = torch.load(args.frozen_weights, map_location='cpu')
     #     model_without_ddp.detr.load_state_dict(checkpoint['model'])
-        # load model
-    checkpoint = torch.load(args.pretrained_weights, map_location='cpu')['model']
-    # del checkpoint["vistr.class_embed.weight"] #TODO: figure out why del
-    # del checkpoint["vistr.class_embed.bias"]
-    # del checkpoint["vistr.query_embed.weight"]
-    if args.distributed:
-        model.module.load_state_dict(checkpoint,strict=False) #Once you wrap the model with nn.DataParallel you get an "extra" .module in your way.
-    else:
-        model.load_state_dict(checkpoint,strict=False)
+    
+    # *load model
+    if args.pretrained_weights is not None:
+        checkpoint = torch.load(args.pretrained_weights, map_location='cpu')['model']
+        # del checkpoint["vistr.class_embed.weight"] #TODO: figure out why del
+        # del checkpoint["vistr.class_embed.bias"]
+        # del checkpoint["vistr.query_embed.weight"]
+
+        if args.distributed:
+            model.module.load_state_dict(checkpoint,strict=False) #Once you wrap the model with nn.DataParallel you get an "extra" .module in your way.
+        else:
+            model.load_state_dict(checkpoint,strict=False)
 
     output_dir = Path(args.output_dir)
     if args.resume:
@@ -223,10 +225,14 @@ def main(args):
         if args.distributed:
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch,
+            model, criterion, postprocessors, data_loader_train, optimizer, device, epoch,
             args.clip_max_norm)
+        
         lr_scheduler.step()
 
+        # evaluate(
+        #     model, criterion, postprocessors, data_loader_train, base_ds, device, args.output_dir, mode='eval_train'
+        # )
         # save every epoch
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -276,16 +282,22 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
+    # os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
     
     if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+        world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
         wandb.init(
-            project='sequence_detr',
+            project='one_frame_vptr',
             config={'learning_rate:':args.lr,
-                    'batch_size':args.batch_size,
+                    'batch_size_per_gpu':args.batch_size,
                     'epochs':args.epochs,
                     'backbone':args.backbone,
-                    'num_frames':args.num_frames
+                    'num_frames':args.num_frames,
+                    'pre_trained':args.pretrained_weights,
+                    'world_size': world_size,
+                    'batch_size': world_size * args.batch_size,
+                    'data_set':args.dataset_file,
+                    'data_augmentation':args.data_augmentation
             })
 
     main(args)

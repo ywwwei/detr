@@ -37,6 +37,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
 
+    i = 0
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -78,10 +79,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
 
         #log every batch
         if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            wandb.log({"train/loss_value":loss_value})
-            wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled})
-            wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled})
-            wandb.log({'epoch':epoch})
+            step = len(data_loader)*epoch+i
+            wandb.log({"train/loss_value":loss_value}, step = step)
+            wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, step = step)
+            wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, step = step)
+            wandb.log({'epoch':epoch}, step = step)
+            i+=1
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -90,13 +93,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
 
 
 @torch.no_grad()
-def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, mode='eval_val'):
+def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, mode='val'):
     model.eval()
     criterion.eval()
 
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
-    header = 'Test:'
+    header = f'Test_{mode}:'
 
     iou_types = tuple(k for k in ('segm', 'bbox') if k in postprocessors.keys())
     coco_evaluator = CocoEvaluator(base_ds, iou_types)
@@ -117,8 +120,8 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         outputs = model(samples)
 
         # visualization
-        if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            wandb_visualization(samples,targets,outputs,postprocessors,mode='val')
+        if mode=='val' and ('LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0):
+            wandb_visualization(samples,targets,outputs,postprocessors,mode=mode)
 
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
@@ -174,18 +177,18 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             bbox_stats = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_bbox'] = bbox_stats
             if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-                wandb.log({f'{mode}/map':bbox_stats[0]})
-                wandb.log({f'{mode}/map_50':bbox_stats[1]})
-                wandb.log({f'{mode}/map_75':bbox_stats[2]})
-                wandb.log({f'{mode}/map_small':bbox_stats[3]})
-                wandb.log({f'{mode}/map_medium':bbox_stats[4]})
-                wandb.log({f'{mode}/map_large':bbox_stats[5]})
-                wandb.log({f'{mode}/mar_1':bbox_stats[6]})
-                wandb.log({f'{mode}/mar_10':bbox_stats[7]})
-                wandb.log({f'{mode}/mar_100':bbox_stats[8]})
-                wandb.log({f'{mode}/mar_small':bbox_stats[9]})
-                wandb.log({f'{mode}/mar_medium':bbox_stats[10]})
-                wandb.log({f'{mode}/mar_large':bbox_stats[11]})
+                wandb.log({ f'{mode}/map':bbox_stats[0],
+                            f'{mode}/map_50':bbox_stats[1],
+                            f'{mode}/map_75':bbox_stats[2],
+                            f'{mode}/map_small':bbox_stats[3],
+                            f'{mode}/map_medium':bbox_stats[4],
+                            f'{mode}/map_large':bbox_stats[5],
+                            f'{mode}/mar_1':bbox_stats[6],
+                            f'{mode}/mar_10':bbox_stats[7],
+                            f'{mode}/mar_100':bbox_stats[8],
+                            f'{mode}/mar_small':bbox_stats[9],
+                            f'{mode}/mar_medium':bbox_stats[10],
+                            f'{mode}/mar_large':bbox_stats[11]}, commit=False)
             
         if 'segm' in postprocessors.keys():
             stats['coco_eval_masks'] = coco_evaluator.coco_eval['segm'].stats.tolist()
@@ -204,15 +207,12 @@ def wandb_visualization(samples,targets,outputs,postprocessors,mode):
     T = 1
     '''
     images, masks = samples.decompose()
-    scores = outputs['pred_logits']
-    boxes = outputs['pred_boxes']
-    # conver the box to 
-    batch_size, num_query, num_classes = scores.shape
+    batch_size, num_query, num_classes = outputs['pred_logits'].shape
 
     target_sizes = torch.stack([t["size"] for t in targets], dim=0)
     results = postprocessors['bbox'](outputs, target_sizes) #[{'scores': s, 'labels': l, 'boxes': b}]*batch_size
 
-
+    vis_data = {}
     for i in range(batch_size):
         wandb_boxes = {}
 
@@ -241,7 +241,9 @@ def wandb_visualization(samples,targets,outputs,postprocessors,mode):
         # wandb_gt = {}
         wandb_boxes = {'predictions':wandb_predictions}#, 'ground_truth':wandb_gt}
         wandb_img = wandb.Image(image, boxes=wandb_boxes)
-        wandb.log({f'{mode}/vis':wandb_img})
+        vis_data[f'{mode}_Media/{i}'] = wandb_img
+
+    wandb.log(vis_data,commit=False)
     
 
 def clip_data(a):

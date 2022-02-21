@@ -138,6 +138,9 @@ def main(args):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
+    if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+        wandb.watch(model_without_ddp,log='all')
+
     param_dicts = [
         {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
         {
@@ -182,6 +185,7 @@ def main(args):
         base_ds = get_coco_api_from_dataset(dataset_val)
     else:
         base_ds = get_api_from_dataset(dataset_val)
+        train_base_ds = get_api_from_dataset(dataset_train)
 
     # if args.frozen_weights is not None:
     #     checkpoint = torch.load(args.frozen_weights, map_location='cpu')
@@ -224,15 +228,16 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             sampler_train.set_epoch(epoch)
+
         train_stats = train_one_epoch(
             model, criterion, postprocessors, data_loader_train, optimizer, device, epoch,
             args.clip_max_norm)
         
         lr_scheduler.step()
 
-        # evaluate(
-        #     model, criterion, postprocessors, data_loader_train, base_ds, device, args.output_dir, mode='eval_train'
-        # )
+        evaluate(
+            model, criterion, postprocessors, data_loader_train, train_base_ds, device, args.output_dir, mode='train_eval'
+        )
         # save every epoch
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -290,13 +295,13 @@ if __name__ == '__main__':
             project='one_frame_vptr',
             config={'learning_rate:':args.lr,
                     'batch_size_per_gpu':args.batch_size,
-                    'epochs':args.epochs,
-                    'backbone':args.backbone,
-                    'num_frames':args.num_frames,
-                    'pre_trained':args.pretrained_weights,
                     'world_size': world_size,
                     'batch_size': world_size * args.batch_size,
-                    'data_set':args.dataset_file,
+                    'epochs':args.epochs,
+                    'backbone':args.backbone,
+                    'pre_trained':args.pretrained_weights,
+                    'num_frames':args.num_frames,
+                    'dataset':args.dataset_file,
                     'data_augmentation':args.data_augmentation
             })
 

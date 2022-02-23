@@ -39,7 +39,7 @@ class ArgoverseHDDataset:
         target_im_ids = []
         input_seq_ids = []
 
-        for sid in range(len(self.api.sequences[:-1])):
+        for sid in range(len(self.api.sequences[:4])):
             im_ids =  self.api.sidToImgs[sid] # im_ids in the sequence of current sid
             for fid in range(self.num_frames,len(im_ids),step): 
                 # skip first num_frame frames and last extra frames
@@ -274,7 +274,7 @@ def no_transforms(image_set):
 
     normalize = T.Compose([
         T.ToTensor(),
-        # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]) # TODO:
 
     # scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768]

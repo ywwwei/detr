@@ -45,8 +45,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
         outputs = model(samples)
 
         # visualization
+        step = len(data_loader)*epoch+i
         if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            wandb_visualization(samples,targets,outputs,postprocessors, mode='train')
+            wandb_visualization(samples,targets,outputs,postprocessors, mode='train', step=step)
 
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
@@ -79,11 +80,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
 
         #log every batch
         if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            step = len(data_loader)*epoch+i
             wandb.log({"train/loss_value":loss_value}, step = step)
-            wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, step = step)
+            wandb.log({f"train/{k}":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, step = step)
             wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, step = step)
-            wandb.log({'epoch':epoch}, step = step)
+            wandb.log({'epoch':epoch,'lr':optimizer.param_groups[0]["lr"]}, step = step)
             i+=1
 
     # gather the stats from all processes
@@ -120,7 +120,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         outputs = model(samples)
 
         # visualization
-        if mode=='val' and ('LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0):
+        if mode!='train' and ('LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0):
             wandb_visualization(samples,targets,outputs,postprocessors,mode=mode)
 
         loss_dict = criterion(outputs, targets)
@@ -199,7 +199,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     return stats, coco_evaluator
 
 
-def wandb_visualization(samples,targets,outputs,postprocessors,mode):
+def wandb_visualization(samples,targets,outputs,postprocessors,mode,step=None):
     '''
     samples: nested_tensor
     targets:
@@ -208,6 +208,7 @@ def wandb_visualization(samples,targets,outputs,postprocessors,mode):
     '''
     images, masks = samples.decompose()
     batch_size, num_query, num_classes = outputs['pred_logits'].shape
+    num_frame = images.shape[0]//batch_size
 
     target_sizes = torch.stack([t["size"] for t in targets], dim=0)
     results = postprocessors['bbox'](outputs, target_sizes) #[{'scores': s, 'labels': l, 'boxes': b}]*batch_size
@@ -216,12 +217,13 @@ def wandb_visualization(samples,targets,outputs,postprocessors,mode):
     for i in range(batch_size):
         wandb_boxes = {}
 
-        image = images[i]
+        image = images[(i+1)*num_frame-1]
         mask = masks[i]
         idx = torch.nonzero(~mask,as_tuple=True)
         oh,ow = idx[0].max()+1, idx[1].max()+1
         image = image[:,:oh,:ow]
         result = results[i]
+        target = targets[i]
 
         # prediction
         wandb_predictions = {"box_data": [],"class_labels": argoverse_class_id_to_label}
@@ -238,12 +240,23 @@ def wandb_visualization(samples,targets,outputs,postprocessors,mode):
             wandb_predictions["box_data"].append(box_data)
 
         # ground_truth
-        # wandb_gt = {}
-        wandb_boxes = {'predictions':wandb_predictions}#, 'ground_truth':wandb_gt}
+        wandb_gt = {"box_data": [],"class_labels": argoverse_class_id_to_label}
+        for n in range(len(target['boxes'])):
+            box_data = {}
+            box = target["boxes"][n]
+            box_data["position"] = {'middle':(box[0].item(),box[1].item()),'width':box[2].item(),'height':box[3].item()}
+            class_id = target['labels'][n].item()
+            box_data['class_id'] = class_id
+            box_data['box_caption'] = argoverse_class_id_to_label[int(class_id)]
+            wandb_gt["box_data"].append(box_data)
+        wandb_boxes = {'predictions':wandb_predictions, 'ground_truth':wandb_gt}
         wandb_img = wandb.Image(image, boxes=wandb_boxes)
         vis_data[f'{mode}_Media/{i}'] = wandb_img
 
-    wandb.log(vis_data,commit=False)
+    if step:
+        wandb.log(vis_data,step=step)
+    else:
+        wandb.log(vis_data,commit=False)
     
 
 def clip_data(a):

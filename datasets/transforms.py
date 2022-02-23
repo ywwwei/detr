@@ -500,7 +500,10 @@ class Normalize(object):
     def __call__(self, clip, target=None):
         image = []
         for im in clip:
-            image.append(F.normalize(im, mean=self.mean, std=self.std))
+            if self.mean:
+                image.append(F.normalize(im, mean=self.mean, std=self.std))
+            else:
+                image.append(im) # not normalize the image
         if target is None:
             return image, None
         target = target.copy()

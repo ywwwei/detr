@@ -139,7 +139,7 @@ def main(args):
     print('number of params:', n_parameters)
 
     if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-        wandb.watch(model,criterion,log='all',log_freq=10)
+        wandb.watch(model,criterion,log='all',log_freq=1)
 
     param_dicts = [
         {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
@@ -290,7 +290,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    # os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '3'
     
     if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
         world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1

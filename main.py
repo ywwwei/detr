@@ -33,6 +33,8 @@ def get_args_parser():
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
+    parser.add_argument('--coco_pretrained', type=str, default='/nobackup/yb/modelZoo/coco_detr_r50.pth',
+                        help="Path to the pretrained model.")
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
                         help="Name of the convolutional backbone to use")
@@ -83,6 +85,7 @@ def get_args_parser():
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
     parser.add_argument('--coco_path', type=str, default='/nobackup/yb/COCO')
+    parser.add_argument('--dataset_path', type=str, default='')
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
@@ -194,6 +197,13 @@ def main(args):
         if args.output_dir:
             utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
         return
+    
+    if args.coco_pretrained is not None:
+        checkpoint = torch.load(args.coco_pretrained, map_location='cpu')['model']
+        del checkpoint["class_embed.weight"]
+        del checkpoint["class_embed.bias"]
+        # del checkpoint["vistr.query_embed.weight"]
+        model_without_ddp.load_state_dict(checkpoint,strict=False)
 
     print("Start training")
     start_time = time.time()
@@ -259,11 +269,12 @@ if __name__ == '__main__':
         wandb.init(
             project='detr',
             entity="streaming_perception",
-            name='coco',
+            name=args.dataset_file,
             config={'learning_rate:':args.lr,
                     'batch_size':args.total_batch_size,
                     'epochs':args.epochs,
                     'backbone':args.backbone,
                     'num_frames':1
-            })
+            },
+            dir='/nobackup/yb/Exp/wandb')
     main(args)

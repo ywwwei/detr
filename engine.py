@@ -63,12 +63,14 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
 
         #log every batch
         if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            wandb_img = wandb_imgs_parser(samples,targets,outputs,postprocessors,idx=[0])[0]
-            wandb.log({"train_vis":wandb_img},commit=False)
-            wandb.log({"train/loss_value":loss_value}, commit=False)
-            wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, commit=False)
-            wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, commit=False)
-            wandb.log({'epoch':epoch},step=len(data_loader)*epoch+i)
+            if (i+1)%100==0:
+                wandb_img = wandb_imgs_parser(samples,targets,outputs,postprocessors,idx=[0])[0]
+                wandb.log({"train_vis":wandb_img},commit=False)
+            if (i+1)%10==0:
+                wandb.log({"train/loss_value":loss_value}, commit=False)
+                wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, commit=False)
+                wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, commit=False)
+                wandb.log({'epoch':epoch},step=len(data_loader)*epoch+i)
             i+=1
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -205,7 +207,7 @@ def wandb_imgs_parser(samples,targets,outputs,postprocessors,idx=None):
         target = targets[i]
 
         # prediction
-        wandb_predictions = {"box_data": [],"class_labels": coco_class_id_to_label}
+        wandb_predictions = {"box_data": [],"class_labels": ytvis_class_id_to_label}
         for n in range(num_query):
             box_data = {}
             box = result["boxes"][n]
@@ -213,20 +215,20 @@ def wandb_imgs_parser(samples,targets,outputs,postprocessors,idx=None):
             class_id = result['labels'][n].item()
             score = result['scores'][n].item()
             box_data['class_id'] = class_id
-            box_data['box_caption'] = "%s (%.3f)"%(coco_class_id_to_label[int(class_id)],score)
+            box_data['box_caption'] = "%s (%.3f)"%(ytvis_class_id_to_label[int(class_id)],score)
             box_data['scores'] = {'score':score}
             box_data['domain'] = 'pixel'
             wandb_predictions["box_data"].append(box_data)
 
         # ground_truth
-        wandb_gt = {"box_data": [],"class_labels": coco_class_id_to_label}
+        wandb_gt = {"box_data": [],"class_labels": ytvis_class_id_to_label}
         for n in range(len(target['boxes'])):
             box_data = {}
             box = target["boxes"][n]
             box_data["position"] = {'middle':(box[0].item(),box[1].item()),'width':box[2].item(),'height':box[3].item()}
             class_id = target['labels'][n].item()
             box_data['class_id'] = class_id
-            box_data['box_caption'] = coco_class_id_to_label[int(class_id)]
+            box_data['box_caption'] = ytvis_class_id_to_label[int(class_id)]
             wandb_gt["box_data"].append(box_data)
         wandb_boxes = {'predictions':wandb_predictions, 'ground_truth':wandb_gt}
         wandb_img = wandb.Image(image, boxes=wandb_boxes)
@@ -326,4 +328,48 @@ coco_class_id_to_label={
 89: "hair drier",
 90: "toothbrush",
 91: "empty"
+}
+
+ytvis_class_id_to_label = {
+1:"person",
+2:"giant_panda",
+3:"lizard",
+4:"parrot",
+5:"skateboard",
+6:"sedan",
+7:"ape",
+8:"dog",
+9:"snake",
+10: "monkey",
+11: "hand",
+12: "rabbit",
+13: "duck",
+14: "cat",
+15: "cow",
+16: "fish",
+17: "train",
+18: "horse",
+19: "turtle",
+20: "bear",
+21: "motorbike",
+22: "giraffe",
+23: "leopard",
+24: "fox",
+25: "deer",
+26: "owl",
+27: "surfboard",
+28: "airplane",
+29: "truck",
+30: "zebra",
+31: "tiger",
+32: "elephant",
+33: "snowboard",
+34: "boat",
+35: "shark",
+36: "mouse",
+37: "frog",
+38: "eagle",
+39: "earless_seal",
+40: "tennis_racket",
+41: "EMPTY"
 }

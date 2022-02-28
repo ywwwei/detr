@@ -331,6 +331,7 @@ coco_class_id_to_label={
 }
 
 ytvis_class_id_to_label = {
+0:"UNKNOWN",
 1:"person",
 2:"giant_panda",
 3:"lizard",

@@ -24,12 +24,12 @@ class YTVOSDataset:
         self.return_masks = return_masks
         self.num_frames = num_frames
         self.prepare = ConvertCocoPolysToMask(return_masks)
-        self.ytvos = YTVOS(ann_file)
-        self.cat_ids = self.ytvos.getCatIds()
-        self.vid_ids = self.ytvos.getVidIds()
+        self.api = YTVOS(ann_file)
+        self.cat_ids = self.api.getCatIds()
+        self.vid_ids = self.api.getVidIds()
         self.vid_infos = []
         for i in self.vid_ids:
-            info = self.ytvos.loadVids([i])[0]
+            info = self.api.loadVids([i])[0]
             info['filenames'] = info['file_names']
             self.vid_infos.append(info)
         self.img_ids = []
@@ -51,8 +51,8 @@ class YTVOSDataset:
         for j in range(self.num_frames):
             img_path = os.path.join(str(self.img_folder), self.vid_infos[vid]['file_names'][frame_id-inds[j]])
             img.append(Image.open(img_path).convert('RGB'))
-        ann_ids = self.ytvos.getAnnIds(vidIds=[vid_id])
-        target = self.ytvos.loadAnns(ann_ids)
+        ann_ids = self.api.getAnnIds(vidIds=[vid_id])
+        target = self.api.loadAnns(ann_ids)
         target = {'image_id': idx, 'video_id': vid, 'frame_id': frame_id, 'annotations': target}
         target = self.prepare(img[0], target, inds, self.num_frames)
         if self._transforms is not None:
@@ -217,7 +217,7 @@ def build(image_set, args):
     assert root.exists(), f'provided YTVOS path {root} does not exist'
     PATHS = {
         "train": (root / "train/JPEGImages", root / "annotations" / 'train.v4.json'),
-        "val": (root / "valid/JPEGImages", root / "annotations" / 'valid.v4.json'),
+        "val": (root / "train/JPEGImages", root / "annotations" / 'valid.v4.json'),
     }
     img_folder, ann_file = PATHS[image_set]
     dataset = YTVOSDataset(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, num_frames = 1)

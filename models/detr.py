@@ -314,7 +314,7 @@ def build(args):
         num_classes = 91
     elif args.dataset_file == 'argoverse':
         num_classes = 9 #8+1
-    elif args.dataset_file == "ytvis":
+    elif args.dataset_file == "ytvis" or args.dataset_file == "ytvis_argoformat":
         num_classes = 41 #40+1
     elif args.dataset_file == "coco_panoptic":
         # for panoptic, we just add a num_classes that is large enough to hold

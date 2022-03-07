@@ -1,5 +1,5 @@
 """
-YoutubeVIS data loader
+YoutubeVIS data loader from VISTR
 """
 from pathlib import Path
 
@@ -56,8 +56,8 @@ class YTVOSDataset:
         target = {'image_id': idx, 'video_id': vid, 'frame_id': frame_id, 'annotations': target}
         target = self.prepare(img[0], target, inds, self.num_frames)
         if self._transforms is not None:
-            img, target = self._transforms(img[0], target)
-        return img, target
+            img, target = self._transforms(img[0], target) #img, target = self._transforms(img, target)
+        return img, target #torch.cat(img,dim=0), target
 
 
 def convert_coco_poly_to_mask(segmentations, height, width):
@@ -221,4 +221,5 @@ def build(image_set, args):
     }
     img_folder, ann_file = PATHS[image_set]
     dataset = YTVOSDataset(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks, num_frames = 1)
+    print(image_set,len(dataset), ' measurements')
     return dataset

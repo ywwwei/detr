@@ -21,8 +21,7 @@ class ArgoverseHDDataset:
         json_file, 
         transforms = None, 
         num_frames = 3, 
-        future = False,
-        clips_per_video = 1
+        future = False
     ):
 
         self.data_dir = data_dir # folder of video folder containing sequences
@@ -35,21 +34,20 @@ class ArgoverseHDDataset:
         target_im_ids = []
         input_seq_ids = []
 
-        for sid in range(len(self.api.sequences)):
-            video_length = len(im_ids)
-            im_ids =  self.api.sidToImgs[sid] # im_ids in the sequence of current sid
-            for clip in range(video_length//self.num_frames):
-                if (clip+1)*self.num_frames >= video_length:
-                    break
+        for sid, im_ids in self.api.sidToImgs.items():
+            vid_len = len(im_ids)
+            for fid in range(len(im_ids)): 
+                # target img annotation
+                target_im_ids.append(im_ids[fid])
                 # input clip
-                input_seq_ids.append(im_ids[clip*self.num_frames:(clip+1)*self.num_frames])
-                # target img
+                inds = list(range(self.num_frames))
+                inds = [i%vid_len for i in inds][::-1]
                 if future:
-                    target_im_ids.append(im_ids[(clip+1)*self.num_frames])
+                    seq_ids_ = [im_ids[fid-i-1] for i in inds]
                 else:
-                    target_im_ids.append(im_ids[(clip+1)*self.num_frames-1])
-                if target_im_ids >= clips_per_video:
-                    break # only take the first clips_per_video
+                    seq_ids_ = [im_ids[fid-i] for i in inds]
+                input_seq_ids.append(seq_ids_)
+                
         assert len(target_im_ids) == len(input_seq_ids)
 
         self.target_im_ids = target_im_ids # a list. each element is the target future im id
@@ -63,7 +61,7 @@ class ArgoverseHDDataset:
         imgs = []
         for im_id in input_im_ids:
             image = self.api.imgs[im_id]
-            if "ytvos_data" in self.data_dir:
+            if "ytvos_data" in str(self.data_dir):
                 img_path = self.data_dir/image['name']
             else: #Argoverse
                 img_path = self.data_dir/self.api.sequences[image['sid']]/'ring_front_center'/image['name']
@@ -204,11 +202,12 @@ def build_ytvis_argoformat(image_set, args):
     root = Path(args.dataset_path)
     assert root.exists(), f'provided YTVOS path {root} does not exist'
     PATHS = {
-        "train": (root / "train/JPEGImages", root / "annotations" / 'train_argoformat.json.json'),
+        "train": (root / "train/JPEGImages", root / "annotations" / 'train_argoformat.json'),
         "val": (root / "train/JPEGImages", root / "annotations" / 'valid_argoformat.json'),
     }
     img_folder, ann_file = PATHS[image_set]
     dataset = ArgoverseHDDataset(img_folder, ann_file, transforms=make_coco_transforms(image_set), num_frames = 1, future=False)
+    print(image_set, len(dataset), ' measurements')
     return dataset
 
     

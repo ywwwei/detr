@@ -65,7 +65,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         #log every batch
         if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            if (i+1)%1==0:
+            if (i+1)%100==0:
                 wandb_img = wandb_imgs_parser(samples,targets,outputs,idx=[0])[0]
                 wandb.log({"train_vis":wandb_img},commit=False)
             if (i+1)%10==0:
@@ -160,7 +160,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             bbox_stats = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_bbox'] = bbox_stats
             if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-                wandb_img = wandb_imgs_parser(samples,targets,outputs,postprocessors,idx=[0])[0]
+                wandb_img = wandb_imgs_parser(samples,targets,outputs,idx=[0])[0]
                 wandb.log({'val_vis':wandb_img},commit=False)
                 wandb.log({'val/map':bbox_stats[0],
                             'val/map_50':bbox_stats[1],

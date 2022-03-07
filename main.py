@@ -111,7 +111,9 @@ def get_args_parser():
 
 def main(args):
     utils.init_distributed_mode(args)
-    # print("git:\n  {}\n".format(utils.get_sha()))
+    print("git:\n  {}\n".format(utils.get_sha()))
+
+    args.batch_size = args.total_batch_size//args.world_size if args.world_size else args.total_batch_size
 
     # if args.frozen_weights is not None:
     #     assert args.masks, "Frozen training is meant for segmentation only"
@@ -290,22 +292,35 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+    # os.environ["CUDA_VISIBLE_DEVICES"] = '3'
     
     if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-        world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
         wandb.init(
-            project='one_frame_vptr',
+            project='vptr',
+            entity="streaming_perception",
+            name=f'{args.dataset_file}_{args.num_frames}f',
             config={'learning_rate:':args.lr,
-                    'batch_size_per_gpu':args.batch_size,
-                    'world_size': world_size,
-                    'batch_size': world_size * args.batch_size,
+                    'batch_size':args.total_batch_size,
                     'epochs':args.epochs,
                     'backbone':args.backbone,
-                    'pre_trained':args.pretrained_weights,
-                    'num_frames':args.num_frames,
-                    'dataset':args.dataset_file,
-                    'data_augmentation':args.data_augmentation
-            })
+                    'num_frames':args.num_frames
+            },
+            dir='/nobackup/yb/Exp/wandb')
+
+        # world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
+        # wandb.init(
+        #     project='one_frame_vptr',
+        #     config={'learning_rate:':args.lr,
+        #             'batch_size_per_gpu':args.batch_size,
+        #             'world_size': world_size,
+        #             'batch_size': world_size * args.batch_size,
+        #             'epochs':args.epochs,
+        #             'backbone':args.backbone,
+        #             'pre_trained':args.pretrained_weights,
+        #             'num_frames':args.num_frames,
+        #             'dataset':args.dataset_file,
+        #             'data_augmentation':args.data_augmentation
+        #     })
+
 
     main(args)

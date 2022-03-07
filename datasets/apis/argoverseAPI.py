@@ -18,7 +18,7 @@ def _isArrayLike(obj):
     return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
 
 # Argoverse annotation API
-class youtubevisAPI:
+class argoverseAPI:
     def __init__(self, annotation_file=None):
         """
         Constructor of Microsoft COCO helper class for reading and visualizing annotations.
@@ -248,7 +248,7 @@ class youtubevisAPI:
         :param   resFile (str)     : file name of result file
         :return: res (obj)         : result api object
         """
-        res = youtubevisAPI()
+        res = argoverseAPI()
         res.dataset['images'] = [img for img in self.dataset['images']]
 
         print('Loading and preparing results...')
@@ -349,33 +349,3 @@ class youtubevisAPI:
                 'category_id': int(data[i, 6]),
                 }]
         return ann
-
-    # def annToRLE(self, ann):
-    #     """
-    #     Convert annotation which can be polygons, uncompressed RLE to RLE.
-    #     :return: binary mask (numpy 2D array)
-    #     """
-    #     t = self.imgs[ann['image_id']]
-    #     h, w = t['height'], t['width']
-    #     segm = ann['segmentation']
-    #     if type(segm) == list:
-    #         # polygon -- a single object might consist of multiple parts
-    #         # we merge all parts into one mask rle code
-    #         rles = maskUtils.frPyObjects(segm, h, w)
-    #         rle = maskUtils.merge(rles)
-    #     elif type(segm['counts']) == list:
-    #         # uncompressed RLE
-    #         rle = maskUtils.frPyObjects(segm, h, w)
-    #     else:
-    #         # rle
-    #         rle = ann['segmentation']
-    #     return rle
-
-    # def annToMask(self, ann):
-    #     """
-    #     Convert annotation which can be polygons, uncompressed RLE, or RLE to binary mask.
-    #     :return: binary mask (numpy 2D array)
-    #     """
-    #     rle = self.annToRLE(ann)
-    #     m = maskUtils.decode(rle)
-    #     return m

@@ -3,8 +3,8 @@ import torch.utils.data
 import torchvision
 
 from .coco import build as build_coco
-from .ytvis import build as build_ytvis
-from .argoversehd import build as build_argoverse
+# from .ytvos import build as build_ytvis
+from .argoversehd import build_argoverse, build_ytvis_argoformat
 
 
 def get_coco_api_from_dataset(dataset):
@@ -26,8 +26,10 @@ def build_dataset(image_set, args):
         # to avoid making panopticapi required for coco
         from .coco_panoptic import build as build_coco_panoptic
         return build_coco_panoptic(image_set, args)
-    if args.dataset_file == 'ytvis':
-        return build_ytvis(image_set, args)
+    # if args.dataset_file == 'ytvis':
+    #     return build_ytvis(image_set, args)
     if args.dataset_file == 'argoverse':
         return build_argoverse(image_set, args)
+    if args.dataset_file == 'ytvis_argoformat':
+        return build_ytvis_argoformat(image_set, args)
     raise ValueError(f'dataset {args.dataset_file} not supported')

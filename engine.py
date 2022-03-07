@@ -12,18 +12,9 @@ from typing import Iterable
 import torch
 
 import util.misc as utils
+from util.vis import wandb_imgs_parser
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
-
-argoverse_class_id_to_label = { 0:'person',
-                                1:'bicycle',
-                                2:'car',
-                                3:'motorcycle',
-                                4:'bus',
-                                5:'truck',
-                                6:'traffic_light',
-                                7:'stop_sign',
-                                8:'empty'}
 
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
@@ -43,12 +34,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         outputs = model(samples)
-
-        # visualization
-        step = len(data_loader)*epoch+i
-        if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            wandb_visualization(samples,targets,outputs,postprocessors, mode='train', step=step)
-
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -80,10 +65,14 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
 
         #log every batch
         if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            wandb.log({"train/loss_value":loss_value}, step = step)
-            wandb.log({f"train/{k}":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, step = step)
-            wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, step = step)
-            wandb.log({'epoch':epoch,'lr':optimizer.param_groups[0]["lr"]}, step = step)
+            if (i+1)%100==0:
+                wandb_img = wandb_imgs_parser(samples,targets,outputs,idx=[0])[0]
+                wandb.log({"train_vis":wandb_img},commit=False)
+            if (i+1)%10==0:
+                wandb.log({"train/loss_value":loss_value}, commit=False)
+                wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, commit=False)
+                wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, commit=False)
+                wandb.log({'epoch':epoch},step=len(data_loader)*epoch+i)
             i+=1
 
     # gather the stats from all processes
@@ -118,11 +107,6 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         outputs = model(samples)
-
-        # visualization
-        if mode!='train' and ('LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0):
-            wandb_visualization(samples,targets,outputs,postprocessors,mode=mode)
-
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
 
@@ -177,19 +161,20 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             bbox_stats = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_bbox'] = bbox_stats
             if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-                wandb.log({ f'{mode}/map':bbox_stats[0],
-                            f'{mode}/map_50':bbox_stats[1],
-                            f'{mode}/map_75':bbox_stats[2],
-                            f'{mode}/map_small':bbox_stats[3],
-                            f'{mode}/map_medium':bbox_stats[4],
-                            f'{mode}/map_large':bbox_stats[5],
-                            f'{mode}/mar_1':bbox_stats[6],
-                            f'{mode}/mar_10':bbox_stats[7],
-                            f'{mode}/mar_100':bbox_stats[8],
-                            f'{mode}/mar_small':bbox_stats[9],
-                            f'{mode}/mar_medium':bbox_stats[10],
-                            f'{mode}/mar_large':bbox_stats[11]}, commit=False)
-            
+                wandb_img = wandb_imgs_parser(samples,targets,outputs,idx=[0])[0]
+                wandb.log({'val_vis':wandb_img},commit=False)
+                wandb.log({'val/map':bbox_stats[0],
+                            'val/map_50':bbox_stats[1],
+                            'val/map_75':bbox_stats[2],
+                            'val/map_small':bbox_stats[3],
+                            'val/map_medium':bbox_stats[4],
+                            'val/map_large':bbox_stats[5],
+                            'val/mar_1':bbox_stats[6],
+                            'val/mar_10':bbox_stats[7],
+                            'val/mar_100':bbox_stats[8],
+                            'val/mar_small':bbox_stats[9],
+                            'val/mar_medium':bbox_stats[10],
+                            'val/mar_large':bbox_stats[11]},commit=False)
         if 'segm' in postprocessors.keys():
             stats['coco_eval_masks'] = coco_evaluator.coco_eval['segm'].stats.tolist()
     if panoptic_res is not None:

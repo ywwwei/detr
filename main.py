@@ -211,10 +211,16 @@ def main(args):
         del checkpoint["vistr.class_embed.weight"]
         del checkpoint["vistr.class_embed.bias"]
         del checkpoint["vistr.query_embed.weight"]
+        checkpoint = dict(checkpoint)
+        for k in list(checkpoint.keys()):
+            if k.startswith('vistr.'):
+                new_k = k.replace('vistr.', '')
+                checkpoint[new_k] = checkpoint[k]
+                del checkpoint[k]
         model_without_ddp.load_state_dict(checkpoint,strict=False)
     
     if args.vistr_pretrained and not args.resume:
-        checkpoint = torch.load(args.pretrained_weights, map_location='cpu')['model']
+        checkpoint = torch.load(args.vistr_pretrained, map_location='cpu')['model']
         del checkpoint["vistr.class_embed.weight"]
         del checkpoint["vistr.class_embed.bias"]
         del checkpoint["vistr.query_embed.weight"]

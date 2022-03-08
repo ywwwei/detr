@@ -17,7 +17,7 @@ from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 
 
-def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postprocessors,
+def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, max_norm: float = 0):
     model.train()
@@ -74,7 +74,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module, postproc
                 wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, commit=False)
                 wandb.log({'epoch':epoch},step=len(data_loader)*epoch+i)
             i+=1
-
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -182,73 +181,3 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         stats['PQ_th'] = panoptic_res["Things"]
         stats['PQ_st'] = panoptic_res["Stuff"]
     return stats, coco_evaluator
-
-
-def wandb_visualization(samples,targets,outputs,postprocessors,mode,step=None):
-    '''
-    samples: nested_tensor
-    targets:
-    outputs: {'pred_logits': ,'pred_boxes': , 'aux_outputs':}
-    T = 1
-    '''
-    images, masks = samples.decompose()
-    batch_size, num_query, num_classes = outputs['pred_logits'].shape
-    num_frame = images.shape[0]//batch_size
-
-    target_sizes = torch.stack([t["size"] for t in targets], dim=0)
-    results = postprocessors['bbox'](outputs, target_sizes) #[{'scores': s, 'labels': l, 'boxes': b}]*batch_size
-
-    vis_data = {}
-    for i in range(batch_size):
-        wandb_boxes = {}
-
-        image = images[(i+1)*num_frame-1]
-        mask = masks[i]
-        idx = torch.nonzero(~mask,as_tuple=True)
-        oh,ow = idx[0].max()+1, idx[1].max()+1
-        image = image[:,:oh,:ow]
-        result = results[i]
-        target = targets[i]
-
-        # prediction
-        wandb_predictions = {"box_data": [],"class_labels": argoverse_class_id_to_label}
-        for n in range(num_query):
-            box_data = {}
-            box = result["boxes"][n]
-            box_data["position"] = {'minX':box[0].item(),'maxX':box[1].item(),'minY':box[2].item(),'maxY':box[3].item()}
-            class_id = result['labels'][n].item()
-            score = result['scores'][n].item()
-            box_data['class_id'] = class_id
-            box_data['box_caption'] = "%s (%.3f)"%(argoverse_class_id_to_label[int(class_id)],score)
-            box_data['scores'] = {'score':score}
-            box_data['domain'] = 'pixel'
-            wandb_predictions["box_data"].append(box_data)
-
-        # ground_truth
-        wandb_gt = {"box_data": [],"class_labels": argoverse_class_id_to_label}
-        for n in range(len(target['boxes'])):
-            box_data = {}
-            box = target["boxes"][n]
-            box_data["position"] = {'middle':(box[0].item(),box[1].item()),'width':box[2].item(),'height':box[3].item()}
-            class_id = target['labels'][n].item()
-            box_data['class_id'] = class_id
-            box_data['box_caption'] = argoverse_class_id_to_label[int(class_id)]
-            wandb_gt["box_data"].append(box_data)
-        wandb_boxes = {'predictions':wandb_predictions, 'ground_truth':wandb_gt}
-        wandb_img = wandb.Image(image, boxes=wandb_boxes)
-        vis_data[f'{mode}_Media/{i}'] = wandb_img
-
-    if step:
-        wandb.log(vis_data,step=step)
-    else:
-        wandb.log(vis_data,commit=False)
-    
-
-def clip_data(a):
-    '''
-    a: torch.tensor
-    Clipping input data to the valid range for imshow with RGB data ([0..1] for floats
-    '''
-    a_min = a.min()
-    a_max = a.max()
-    return torch.clip((a-a_min)/torch.abs(a_max-a_min),0,1)

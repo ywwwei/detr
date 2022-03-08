@@ -107,7 +107,7 @@ class ArgoverseHDDataset:
         target["size"] = torch.as_tensor([int(h), int(w)])
 
         if self._transforms is not None:
-            img, target = self._transforms(imgs[0], target)
+            img, target = self._transforms(imgs, target)
 
         return img, target #return video ( [(C,H,W)]*num_frames -> (C*num_frame,H,W)), target
 
@@ -123,6 +123,7 @@ def make_coco_transforms(image_set):
     if image_set == 'train':
         return T.Compose([
             T.RandomHorizontalFlip(),
+            # T.PhotometricDistort(),
             T.RandomSelect(
                 T.RandomResize(scales, max_size=1333),
                 T.Compose([

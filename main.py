@@ -25,16 +25,18 @@ def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
     parser.add_argument('--lr', default=0.01, type=float)
     parser.add_argument('--lr_backbone', default=0.001, type=float)
-    parser.add_argument('--batch_size', default=4, type=int)
+    parser.add_argument('--total_batch_size', default=64, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
-    parser.add_argument('--epochs', default=20, type=int)
+    parser.add_argument('--epochs', default=36, type=int)
     parser.add_argument('--lr_drop', default=200, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
 
     # Model parameters
-    parser.add_argument('--pretrained_weights', type=str, default=None,#'/nobackup/yb/modelZoo/vistr_r50.pth',
+    parser.add_argument('--vistr_pretrained', type=str, default=None,#'/nobackup/yb/modelZoo/vistr_r50.pth',
                         help="Path to the pretrained model.")
+    parser.add_argument('--coco_pretrained', type=str, default='',#/nobackup/yb/modelZoo/coco_detr_r50.pth
+                        help="Path to the pretrained model.")                    
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
                         help="Name of the convolutional backbone to use")
@@ -84,12 +86,12 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='argoverse')
-    parser.add_argument('--dataset_path', type=str, default='/nobackup/yb/Argoverse')
+    parser.add_argument('--dataset_path', type=str, default='')
     # parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--num_frames', default=2, type=int,
+    parser.add_argument('--num_frames', default=3, type=int,
                         help="Number of frames")
-    parser.add_argument('--output_dir', default='/nobackup/yb/Exp/vptr',
+    parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -129,7 +131,6 @@ def main(args):
     np.random.seed(seed)
     random.seed(seed)
 
-    # * build model
     model, criterion, postprocessors = build_model(args)
     model.to(device)
 
@@ -140,8 +141,8 @@ def main(args):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
-    if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-        wandb.watch(model,criterion,log='all',log_freq=1)
+    # if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+    #     wandb.watch(model,criterion,log='all',log_freq=1)
 
     param_dicts = [
         {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
@@ -150,7 +151,7 @@ def main(args):
             "lr": args.lr_backbone,
         },
     ]
-    # * make optimizer
+
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
@@ -192,20 +193,7 @@ def main(args):
     # if args.frozen_weights is not None:
     #     checkpoint = torch.load(args.frozen_weights, map_location='cpu')
     #     model_without_ddp.detr.load_state_dict(checkpoint['model'])
-    
-    # *load model
-    if args.pretrained_weights is not None:
-        checkpoint = torch.load(args.pretrained_weights, map_location='cpu')['model']
-        # del checkpoint["vistr.class_embed.weight"] #TODO: figure out why del
-        # del checkpoint["vistr.class_embed.bias"]
-        # del checkpoint["vistr.query_embed.weight"]
 
-        if args.distributed:
-            model.module.load_state_dict(checkpoint,strict=False) #Once you wrap the model with nn.DataParallel you get an "extra" .module in your way.
-        else:
-            model.load_state_dict(checkpoint,strict=False)
-
-    output_dir = Path(args.output_dir)
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
@@ -218,15 +206,27 @@ def main(args):
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
 
+    if args.coco_pretrained and not args.resume:
+        checkpoint = torch.load(args.coco_pretrained, map_location='cpu')['model']
+        del checkpoint["class_embed.weight"]
+        del checkpoint["class_embed.bias"]
+        del checkpoint["query_embed.weight"]
+        model_without_ddp.load_state_dict(checkpoint,strict=False)
+    
+    if args.vistr_pretrained and not args.resume:
+        checkpoint = torch.load(args.pretrained_weights, map_location='cpu')['model']
+        del checkpoint["vistr.class_embed.weight"]
+        del checkpoint["vistr.class_embed.bias"]
+        del checkpoint["vistr.query_embed.weight"]
+        model_without_ddp.load_state_dict(checkpoint,strict=False)
+    
+    output_dir = Path(args.output_dir)
     if args.eval:
         test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
                                               data_loader_val, base_ds, device, args.output_dir)
         if args.output_dir:
             utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
         return
-    evaluate(
-        model, criterion, postprocessors, data_loader_train, train_base_ds, device, args.output_dir, mode='train_eval_before_train'
-    )
 
     print("Start training")
     start_time = time.time()
@@ -295,15 +295,18 @@ if __name__ == '__main__':
     # os.environ["CUDA_VISIBLE_DEVICES"] = '3'
     
     if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
+        name = 'future' if args.future else 'current'
         wandb.init(
             project='vptr',
             entity="streaming_perception",
-            name=f'{args.dataset_file}_{args.num_frames}f',
+            name=f'{args.dataset_file}_{args.num_frames}f_{name}',
             config={'learning_rate:':args.lr,
                     'batch_size':args.total_batch_size,
                     'epochs':args.epochs,
                     'backbone':args.backbone,
-                    'num_frames':args.num_frames
+                    'num_frames':args.num_frames,
+                    'dataset':args.dataset_file,
+                    'future':args.future
             },
             dir='/nobackup/yb/Exp/wandb')
 

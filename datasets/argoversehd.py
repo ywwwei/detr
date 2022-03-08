@@ -109,7 +109,7 @@ class ArgoverseHDDataset:
         if self._transforms is not None:
             img, target = self._transforms(imgs, target)
 
-        return img, target #return video ( [(C,H,W)]*num_frames -> (C*num_frame,H,W)), target
+        return  torch.cat(img,dim=0), target #return video ( [(C,H,W)]*num_frames -> (C*num_frame,H,W)), target
 
 def make_coco_transforms(image_set):
 

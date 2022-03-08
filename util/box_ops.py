@@ -58,6 +58,9 @@ def generalized_box_iou(boxes1, boxes2):
     wh = (rb - lt).clamp(min=0)  # [N,M,2]
     area = wh[:, :, 0] * wh[:, :, 1]
 
+    if (area == 0).nonzero().sum()>0:
+        print('error')
+
     return iou - (area - union) / area
 
 

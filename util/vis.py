@@ -21,6 +21,7 @@ def wandb_imgs_parser(samples,targets,outputs,idx=None):
     '''
     images, masks = samples.decompose()
     batch_size, num_query, num_classes = outputs['pred_logits'].shape
+    num_frames = images.shape[0]//batch_size
     id2label = get_id2label_map(num_classes)
 
     # target_sizes = torch.stack([t["size"] for t in targets], dim=0) # size before padding
@@ -35,7 +36,7 @@ def wandb_imgs_parser(samples,targets,outputs,idx=None):
     for i in idx_range:
         wandb_boxes = {}
 
-        image = images[i]
+        image = images[(i+1)*num_frames-1] # the last image in the sequence
         mask = masks[i]
         idx = torch.nonzero(~mask,as_tuple=True)
         oh,ow = idx[0].max()+1, idx[1].max()+1

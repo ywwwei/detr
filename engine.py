@@ -65,10 +65,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         #log every batch
         if 'LOCAL_RANK' not in os.environ or int(os.environ['LOCAL_RANK']) == 0:
-            if (i+1)%1==0:
+            if (i+1)%100==0:
                 wandb_img = wandb_imgs_parser(samples,targets,outputs,idx=[0])[0]
                 wandb.log({"train_vis":wandb_img},commit=False)
-            if (i+1)%1==0:
+            if (i+1)%10==0:
                 wandb.log({"train/loss_value":loss_value}, commit=False)
                 wandb.log({f"train/{k}_unweighted":loss_dict_reduced_unscaled[k] for k in loss_dict_reduced_unscaled}, commit=False)
                 wandb.log({f"train/{k}_weighted":loss_dict_reduced_scaled[k] for k in loss_dict_reduced_scaled}, commit=False)

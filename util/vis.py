@@ -36,13 +36,11 @@ def wandb_imgs_parser(samples,targets,outputs,idx=None):
     for i in idx_range:
         wandb_boxes = {}
 
+        target = targets[i]
         image = images[(i+1)*num_frames-1] # the last image in the sequence
-        mask = masks[i]
-        idx = torch.nonzero(~mask,as_tuple=True)
-        oh,ow = idx[0].max()+1, idx[1].max()+1
+        oh,ow = target['size']
         image = image[:,:oh,:ow]
         # result = results[i]
-        target = targets[i]
 
         # prediction
         wandb_predictions = {"box_data": [],"class_labels": id2label}

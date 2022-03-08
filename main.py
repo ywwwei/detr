@@ -23,8 +23,8 @@ import os
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
-    parser.add_argument('--lr', default=0.01, type=float)
-    parser.add_argument('--lr_backbone', default=0.001, type=float)
+    parser.add_argument('--lr', default=0.0001, type=float)
+    parser.add_argument('--lr_backbone', default=0.00001, type=float)
     parser.add_argument('--total_batch_size', default=64, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=36, type=int)
@@ -161,8 +161,8 @@ def main(args):
     dataset_val = build_dataset(image_set='val', args=args)
 
     # # sampled the dataset to speed up trainning for debuging
-    # sampled_indices = random.sample(list(range(len(dataset_train))),len(dataset_train))[:500]
-    # dataset_train = torch.utils.data.Subset(dataset_train,sampled_indices)
+    # sampled_indices = random.sample(list(range(len(dataset_val))),len(dataset_val))[:500]
+    # dataset_val = torch.utils.data.Subset(dataset_val,sampled_indices)
 
     # subsampling the dataset
     if args.distributed:
@@ -208,9 +208,9 @@ def main(args):
 
     if args.coco_pretrained and not args.resume:
         checkpoint = torch.load(args.coco_pretrained, map_location='cpu')['model']
-        del checkpoint["class_embed.weight"]
-        del checkpoint["class_embed.bias"]
-        del checkpoint["query_embed.weight"]
+        del checkpoint["vistr.class_embed.weight"]
+        del checkpoint["vistr.class_embed.bias"]
+        del checkpoint["vistr.query_embed.weight"]
         model_without_ddp.load_state_dict(checkpoint,strict=False)
     
     if args.vistr_pretrained and not args.resume:
@@ -240,15 +240,15 @@ def main(args):
         
         lr_scheduler.step()
 
-        evaluate(
-            model, criterion, postprocessors, data_loader_train, train_base_ds, device, args.output_dir, mode='train_eval'
-        )
+        # evaluate(
+        #     model, criterion, postprocessors, data_loader_train, train_base_ds, device, args.output_dir, mode='train_eval'
+        # )
         # save every epoch
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             # extra checkpoint before LR drop and every 100 epochs
             if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0:
-                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}_{args.num_frames}f.pth')
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
@@ -301,6 +301,7 @@ if __name__ == '__main__':
             entity="streaming_perception",
             name=f'{args.dataset_file}_{args.num_frames}f_{name}',
             config={'learning_rate:':args.lr,
+                    'lr_backbone':args.lr_backbone,
                     'batch_size':args.total_batch_size,
                     'epochs':args.epochs,
                     'backbone':args.backbone,
